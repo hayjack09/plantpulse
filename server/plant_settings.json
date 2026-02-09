@@ -1,0 +1,90 @@
+{
+  "names": {
+    "account1_soil_ch1": "Palm - Small (Roof)",
+    "account1_soil_ch3": "Little Podo #2",
+    "account1_soil_ch4": "Palm - Large (Roof)",
+    "account1_soil_ch5": "Podocarpus #3",
+    "account1_soil_ch6": "Little Podo #1",
+    "account1_soil_ch7": "Podocarpus #1",
+    "account1_soil_ch8": "Orange Tree",
+    "account2_soil_ch1": "Palm (Entrance)",
+    "account2_soil_ch2": "Rosemary",
+    "account2_soil_ch3": "Bird of Paradise #1",
+    "account2_soil_ch6": "Little Podo #1",
+    "account2_soil_ch7": "Indoor Ivy",
+    "account1_soil_ch2": "Podocarpus #2",
+    "account2_soil_ch5": "Bird of Paradise #2"
+  },
+  "colors": {
+    "account2_soil_ch1": "coffee",
+    "account2_soil_ch2": "coffee",
+    "account2_soil_ch3": "coffee",
+    "account2_soil_ch5": "coffee",
+    "account2_soil_ch7": "coffee"
+  },
+  "order": [
+    "account1_soil_ch7",
+    "account1_soil_ch2",
+    "account1_soil_ch5",
+    "account1_soil_ch6",
+    "account1_soil_ch3",
+    "account1_soil_ch4",
+    "account1_soil_ch1",
+    "account1_soil_ch8",
+    "account2_soil_ch1",
+    "account2_soil_ch2",
+    "account2_soil_ch3",
+    "account2_soil_ch5",
+    "account2_soil_ch7"
+  ],
+  "hidden": [
+    "account2_soil_ch4",
+    "account2_soil_ch6"
+  ],
+  "thresholds": {
+    "account1_soil_ch7": {
+      "min": 40,
+      "max": 50
+    },
+    "account1_soil_ch3": {
+      "min": 40,
+      "max": 50
+    },
+    "account1_soil_ch6": {
+      "min": 40,
+      "max": 50
+    },
+    "account1_soil_ch2": {
+      "min": 40,
+      "max": 50
+    },
+    "account1_soil_ch5": {
+      "min": 40,
+      "max": 50
+    },
+    "account2_soil_ch2": {
+      "min": 37,
+      "max": 45
+    },
+    "account1_soil_ch8": {
+      "min": 56,
+      "max": 71
+    },
+    "account1_soil_ch1": {
+      "min": 55,
+      "max": 69
+    },
+    "account1_soil_ch4": {
+      "min": 55,
+      "max": 69
+    },
+    "account2_soil_ch5": {
+      "min": 45,
+      "max": 56
+    },
+    "account2_soil_ch3": {
+      "min": 45,
+      "max": 56
+    }
+  }
+}

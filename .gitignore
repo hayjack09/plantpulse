@@ -23,7 +23,6 @@ npm-debug.log*
 
 # Server data (local storage)
 server/sensor_history.json
-server/plant_settings.json
 
 # TypeScript cache
 *.tsbuildinfo
