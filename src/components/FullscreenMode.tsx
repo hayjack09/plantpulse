@@ -97,7 +97,7 @@ function FullscreenTile({
   );
 }
 
-export function FullscreenMode({ sensors, getName, getColor, getThreshold, getMoistureStatus, lastUpdated }: FullscreenModeProps) {
+export function FullscreenMode({ sensors, getName, getColor, getThreshold: _getThreshold, getMoistureStatus, lastUpdated }: FullscreenModeProps) {
   const [temperature, setTemperature] = useState<number | null>(null);
 
   const exitFullscreen = () => {

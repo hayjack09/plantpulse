@@ -125,7 +125,7 @@ interface AnimatedBackgroundProps {
 
 export function AnimatedBackground({ fullscreen = false }: AnimatedBackgroundProps) {
   const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [sunPosition, setSunPosition] = useState(0.5);
+  const [_sunPosition, setSunPosition] = useState(0.5);
   const [timeOfDay, setTimeOfDay] = useState<'night' | 'dawn' | 'morning' | 'afternoon' | 'evening'>('afternoon');
   const [shootingStar, setShootingStar] = useState<{ startX: number; startY: number; angle: number } | null>(null);
   const [activeHeli, setActiveHeli] = useState<{ top: number; direction: number; drift: number; key: number } | null>(null);

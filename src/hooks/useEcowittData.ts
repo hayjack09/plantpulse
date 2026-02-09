@@ -33,7 +33,7 @@ async function fetchSettings(): Promise<PlantSettings> {
   } catch (err) {
     console.error('Error fetching settings:', err);
   }
-  return { names: {}, colors: {}, order: [], hidden: [] };
+  return { names: {}, colors: {}, order: [], hidden: [], thresholds: {} };
 }
 
 export function useEcowittData(): UseEcowittDataResult {

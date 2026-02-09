@@ -30,7 +30,7 @@ interface DashboardProps {
 export function Dashboard({ sensors, loading, error, onSensorClick }: DashboardProps) {
   const { getName, updateName } = usePlantNames();
   const { sortSensors, updateOrder } = useSensorOrder();
-  const { hidden, hideSensor, unhideSensor, isHidden } = useHiddenSensors();
+  const { hidden: _hidden, hideSensor, unhideSensor, isHidden } = useHiddenSensors();
   const { getColor, updateColor } = usePlantColors();
   const { getThreshold, updateThreshold, getMoistureStatus } = usePlantThresholds();
 

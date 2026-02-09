@@ -7,7 +7,7 @@ interface HeaderProps {
   lastUpdated: string | null;
 }
 
-export function Header({ onRefresh, loading, lastUpdated }: HeaderProps) {
+export function Header({ onRefresh: _onRefresh, loading: _loading, lastUpdated }: HeaderProps) {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [temperature, setTemperature] = useState<number | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(!!document.fullscreenElement);
