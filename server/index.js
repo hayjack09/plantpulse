@@ -652,6 +652,19 @@ app.post('/api/settings/threshold', (req, res) => {
   res.json({ success: true, thresholds: settings.thresholds });
 });
 
+// Serve static files from the built frontend (production)
+const distPath = path.join(__dirname, '..', 'dist');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  // Serve index.html for all non-API routes (SPA support)
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(distPath, 'index.html'));
+    }
+  });
+  console.log('Serving static files from:', distPath);
+}
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`PlantPulse server running on http://0.0.0.0:${PORT}`);
   console.log(`Configured Ecowitt accounts: ${accounts.length}`);
