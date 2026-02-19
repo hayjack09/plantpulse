@@ -53,9 +53,37 @@ export function useEcowittData(): UseEcowittDataResult {
         setLoading(true);
       }
       const data: SensorResponse = await fetchSensors();
-      // Update sensors if we got data (keep prev only if response is empty)
+      // Update sensors if we got data - merge instead of replace to prevent re-renders
       if (data.sensors.length > 0) {
-        setSensors(data.sensors);
+        setSensors(prevSensors => {
+          // If no previous sensors, just set the new ones
+          if (prevSensors.length === 0) {
+            return data.sensors;
+          }
+          // Merge: update existing sensors in place, add new ones
+          const sensorMap = new Map(data.sensors.map(s => [s.id, s]));
+          const updated = prevSensors.map(prev => {
+            const newData = sensorMap.get(prev.id);
+            if (newData) {
+              sensorMap.delete(prev.id);
+              // Return same object reference if data hasn't changed
+              if (prev.moisture === newData.moisture &&
+                  prev.ad === newData.ad &&
+                  prev.timestamp === newData.timestamp &&
+                  prev.dailyMin === newData.dailyMin &&
+                  prev.dailyMax === newData.dailyMax) {
+                return prev;
+              }
+              return newData;
+            }
+            return prev;
+          });
+          // Add any new sensors that weren't in the previous list
+          for (const sensor of sensorMap.values()) {
+            updated.push(sensor);
+          }
+          return updated;
+        });
       }
       setLastUpdated(data.lastUpdated);
       setError(null);

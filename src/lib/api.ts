@@ -3,7 +3,9 @@ import { SensorResponse } from '../types/ecowitt';
 const API_BASE = '/api';
 
 export async function fetchSensors(): Promise<SensorResponse> {
-  const response = await fetch(`${API_BASE}/sensors`);
+  const response = await fetch(`${API_BASE}/sensors?_t=${Date.now()}`, {
+    cache: 'no-store',
+  });
 
   if (!response.ok) {
     throw new Error(`API error: ${response.status}`);

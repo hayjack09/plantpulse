@@ -89,6 +89,21 @@ function getMoonPhaseName(phase: number): string {
   return 'Waning Crescent';
 }
 
+// Check if today is Presidents Day (third Monday of February)
+function isPresidentsDay(): boolean {
+  const now = new Date();
+  const laTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+  const month = laTime.getMonth(); // 0-indexed, so February = 1
+  const day = laTime.getDate();
+  const dayOfWeek = laTime.getDay(); // 0 = Sunday, 1 = Monday
+
+  if (month !== 1) return false; // Not February
+  if (dayOfWeek !== 1) return false; // Not Monday
+
+  // Third Monday falls between 15th and 21st
+  return day >= 15 && day <= 21;
+}
+
 // Seeded random number generator for consistent star positions
 function seededRandom(seed: number): () => number {
   let state = seed;
@@ -131,6 +146,9 @@ export function AnimatedBackground({ fullscreen = false }: AnimatedBackgroundPro
   const [activeHeli, setActiveHeli] = useState<{ top: number; direction: number; drift: number; key: number } | null>(null);
   const [hoveringHeli, setHoveringHeli] = useState<{ top: number; left: number; key: number; phase: 'enter' | 'hover' | 'exit'; fromDirection: 'left' | 'right' } | null>(null);
   const [contrails, setContrails] = useState<{ id: number; top: number; direction: number; speed: number }[]>([]);
+  const [fireworks, setFireworks] = useState<{ id: number; x: number; y: number; color: string }[]>([]);
+  const [militaryJets, setMilitaryJets] = useState<{ id: number; top: number; formation: number }[]>([]);
+  const presidentsDay = isPresidentsDay();
 
   useEffect(() => {
     async function fetchWeather() {
@@ -345,6 +363,79 @@ export function AnimatedBackground({ fullscreen = false }: AnimatedBackgroundPro
     };
   }, []);
 
+  // Presidents Day fireworks - patriotic colors throughout the day
+  useEffect(() => {
+    if (!presidentsDay) return;
+
+    let idCounter = 0;
+    const colors = ['#ff0000', '#ffffff', '#0000ff', '#ff0000', '#ffffff', '#0000ff'];
+
+    const triggerFirework = () => {
+      idCounter++;
+      const id = idCounter;
+      const x = 10 + Math.random() * 80; // 10-90% of screen width
+      const y = 5 + Math.random() * 35;  // 5-40% of screen height (in sky)
+      const color = colors[Math.floor(Math.random() * colors.length)];
+
+      setFireworks(prev => [...prev, { id, x, y, color }]);
+
+      // Remove after animation (2.5s)
+      setTimeout(() => {
+        setFireworks(prev => prev.filter(f => f.id !== id));
+      }, 2500);
+    };
+
+    // Launch fireworks every 8-15 seconds
+    const launchFireworks = () => {
+      triggerFirework();
+      // Sometimes launch 2-3 at once
+      if (Math.random() > 0.5) {
+        setTimeout(triggerFirework, 200 + Math.random() * 400);
+      }
+      if (Math.random() > 0.7) {
+        setTimeout(triggerFirework, 500 + Math.random() * 500);
+      }
+    };
+
+    const initialTimeout = setTimeout(launchFireworks, 5000);
+    const interval = setInterval(launchFireworks, 8000 + Math.random() * 7000);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
+  }, [presidentsDay]);
+
+  // Presidents Day military jet flyovers
+  useEffect(() => {
+    if (!presidentsDay) return;
+
+    let idCounter = 0;
+
+    const triggerJetFlyover = () => {
+      idCounter++;
+      const id = idCounter;
+      const top = 8 + Math.random() * 15; // 8-23% from top
+      const formation = Math.floor(Math.random() * 3); // 0, 1, or 2 for different formations
+
+      setMilitaryJets(prev => [...prev, { id, top, formation }]);
+
+      // Remove after flyover (12s)
+      setTimeout(() => {
+        setMilitaryJets(prev => prev.filter(j => j.id !== id));
+      }, 12000);
+    };
+
+    // Jets fly over every 45-90 seconds
+    const initialTimeout = setTimeout(triggerJetFlyover, 15000);
+    const interval = setInterval(triggerJetFlyover, 45000 + Math.random() * 45000);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
+  }, [presidentsDay]);
+
   const isDay = weather?.isDay ?? timeOfDay !== 'night';
   const weatherType = weather ? getWeatherType(weather.weatherCode) : 'clear';
   const cloudCover = weather?.cloudCover ?? 20;
@@ -368,10 +459,17 @@ export function AnimatedBackground({ fullscreen = false }: AnimatedBackgroundPro
   // Calculate cloud speed based on wind
   const cloudSpeedBase = Math.max(30, 80 - windSpeed * 2);
 
-  // Sky gradient based on time of day - simple and realistic
+  // Sky gradient based on time of day and weather - simple and realistic
   const getSkyGradient = () => {
     if (!isDay) {
-      return 'linear-gradient(to bottom, #0a0a1a 0%, #1a1a3a 30%, #2d2d5a 100%)';
+      return 'linear-gradient(to bottom, #0a0a1a 0%, #0a0a1a 50%, #1a1a3a 80%, #1a1a3a 100%)';
+    }
+    // Overcast/rainy sky
+    if (weatherType === 'rainy' || weatherType === 'stormy') {
+      return 'linear-gradient(to bottom, #4a5568 0%, #718096 30%, #a0aec0 60%, #cbd5e0 100%)';
+    }
+    if (weatherType === 'foggy') {
+      return 'linear-gradient(to bottom, #9ca3af 0%, #d1d5db 50%, #e5e7eb 100%)';
     }
     switch (timeOfDay) {
       case 'dawn':
@@ -392,7 +490,7 @@ export function AnimatedBackground({ fullscreen = false }: AnimatedBackgroundPro
     <div className="fixed inset-0 overflow-hidden">
       {/* Sky gradient */}
       <div
-        className="absolute inset-0 transition-all duration-[3000ms]"
+        className="absolute inset-0"
         style={{ background: getSkyGradient() }}
       />
 
@@ -410,10 +508,8 @@ export function AnimatedBackground({ fullscreen = false }: AnimatedBackgroundPro
                 top: star.top + '%',
                 animationDelay: star.delay + 's',
                 animationDuration: star.duration + 's',
-                backgroundColor: star.isBright ? '#ffffff' : 'rgba(255, 255, 255, 0.9)',
-                boxShadow: star.isBright
-                  ? '0 0 6px 2px rgba(255, 255, 255, 0.8), 0 0 12px 4px rgba(200, 220, 255, 0.5)'
-                  : '0 0 4px 1px rgba(255, 255, 255, 0.6)'
+                backgroundColor: star.isBright ? '#ffffff' : 'rgba(255, 255, 255, 0.8)',
+                boxShadow: star.isBright ? '0 0 4px 1px rgba(255, 255, 255, 0.6)' : 'none',
               }}
             />
           ))}
@@ -544,24 +640,15 @@ export function AnimatedBackground({ fullscreen = false }: AnimatedBackgroundPro
         </div>
       )}
 
+      {/* Presidents Day Fireworks */}
+      {fireworks.map(fw => (
+        <Firework key={`fw-${fw.id}`} x={fw.x} y={fw.y} color={fw.color} />
+      ))}
 
-      {/* Rain (rainy/stormy weather) */}
-      {(weatherType === 'rainy' || weatherType === 'stormy') && (
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {[...Array(100)].map((_, i) => (
-            <div
-              key={`rain-${i}`}
-              className="absolute w-0.5 bg-gradient-to-b from-transparent via-blue-300/40 to-blue-400/60 animate-rain"
-              style={{
-                height: 15 + Math.random() * 20 + 'px',
-                left: Math.random() * 100 + '%',
-                animationDelay: Math.random() * 2 + 's',
-                animationDuration: 0.5 + Math.random() * 0.5 + 's'
-              }}
-            />
-          ))}
-        </div>
-      )}
+      {/* Presidents Day Military Jets */}
+      {militaryJets.map(jet => (
+        <MilitaryJetFormation key={`jet-${jet.id}`} top={jet.top} formation={jet.formation} isDay={isDay} />
+      ))}
 
       {/* Fog overlay */}
       {weatherType === 'foggy' && (
@@ -576,6 +663,25 @@ export function AnimatedBackground({ fullscreen = false }: AnimatedBackgroundPro
         className="absolute inset-0 bg-[url('/banana-leaf.png')] bg-repeat bg-[length:400px_400px] transition-opacity duration-1000"
         style={{ opacity: isDay ? 0.15 : 0.08 }}
       />
+
+      {/* Rain (rainy/stormy weather) - rendered on top of everything */}
+      {(weatherType === 'rainy' || weatherType === 'stormy') && (
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-10">
+          {[...Array(150)].map((_, i) => (
+            <div
+              key={`rain-${i}`}
+              className="absolute bg-gradient-to-b from-transparent via-blue-200/60 to-blue-300/80 animate-rain"
+              style={{
+                width: '1px',
+                height: 20 + Math.random() * 25 + 'px',
+                left: Math.random() * 100 + '%',
+                animationDelay: Math.random() * 2 + 's',
+                animationDuration: 0.4 + Math.random() * 0.4 + 's'
+              }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1280,18 +1386,170 @@ function HoveringHelicopter({ top, left, phase, isDay, fullscreen = false, fromD
   );
 }
 
+// Presidents Day Firework component
+function Firework({ x, y, color }: { x: number; y: number; color: string }) {
+  return (
+    <div
+      className="absolute pointer-events-none"
+      style={{
+        left: `${x}%`,
+        top: `${y}%`,
+        transform: 'translate(-50%, -50%)',
+      }}
+    >
+      {/* Firework burst - multiple particles radiating outward */}
+      {[...Array(12)].map((_, i) => {
+        const angle = (i * 30) * (Math.PI / 180);
+        const distance = 30 + Math.random() * 20;
+        return (
+          <div
+            key={i}
+            className="absolute rounded-full animate-firework-particle"
+            style={{
+              width: '4px',
+              height: '4px',
+              backgroundColor: color,
+              boxShadow: `0 0 6px 2px ${color}, 0 0 12px 4px ${color}80`,
+              '--tx': `${Math.cos(angle) * distance}px`,
+              '--ty': `${Math.sin(angle) * distance}px`,
+              animationDelay: `${i * 0.02}s`,
+            } as React.CSSProperties}
+          />
+        );
+      })}
+      {/* Center flash */}
+      <div
+        className="absolute rounded-full animate-firework-flash"
+        style={{
+          width: '20px',
+          height: '20px',
+          backgroundColor: color,
+          boxShadow: `0 0 20px 10px ${color}, 0 0 40px 20px ${color}80`,
+          transform: 'translate(-50%, -50%)',
+        }}
+      />
+    </div>
+  );
+}
+
+// Presidents Day Military Jet Formation
+function MilitaryJetFormation({ top, formation, isDay }: { top: number; formation: number; isDay: boolean }) {
+  const jetColor = isDay ? '#374151' : '#4b5563';
+
+  // Different formations: 0 = V-shape, 1 = line, 2 = diamond
+  const getJetPositions = () => {
+    switch (formation) {
+      case 0: // V-formation (5 jets)
+        return [
+          { x: 0, y: 0 },
+          { x: -20, y: -15 },
+          { x: -20, y: 15 },
+          { x: -40, y: -30 },
+          { x: -40, y: 30 },
+        ];
+      case 1: // Line formation (4 jets)
+        return [
+          { x: 0, y: -30 },
+          { x: 0, y: -10 },
+          { x: 0, y: 10 },
+          { x: 0, y: 30 },
+        ];
+      default: // Diamond (4 jets)
+        return [
+          { x: 0, y: 0 },
+          { x: -25, y: -20 },
+          { x: -25, y: 20 },
+          { x: -50, y: 0 },
+        ];
+    }
+  };
+
+  const jets = getJetPositions();
+
+  return (
+    <div
+      className="absolute pointer-events-none animate-jet-flyover"
+      style={{
+        top: `${top}%`,
+        left: '-10%',
+      }}
+    >
+      {jets.map((pos, i) => (
+        <div
+          key={i}
+          className="absolute"
+          style={{
+            transform: `translate(${pos.x}px, ${pos.y}px)`,
+          }}
+        >
+          {/* Jet body - simplified fighter jet shape */}
+          <div
+            style={{
+              width: '24px',
+              height: '6px',
+              backgroundColor: jetColor,
+              borderRadius: '3px 12px 12px 3px',
+              position: 'relative',
+            }}
+          >
+            {/* Wings */}
+            <div
+              style={{
+                position: 'absolute',
+                width: '14px',
+                height: '16px',
+                backgroundColor: jetColor,
+                left: '4px',
+                top: '-5px',
+                clipPath: 'polygon(0 50%, 100% 0, 100% 100%)',
+              }}
+            />
+            {/* Tail */}
+            <div
+              style={{
+                position: 'absolute',
+                width: '6px',
+                height: '10px',
+                backgroundColor: jetColor,
+                left: '-2px',
+                top: '-2px',
+                clipPath: 'polygon(0 50%, 100% 0, 100% 100%)',
+              }}
+            />
+            {/* Contrail */}
+            <div
+              style={{
+                position: 'absolute',
+                width: '60px',
+                height: '2px',
+                background: `linear-gradient(to left, ${isDay ? 'rgba(255,255,255,0.8)' : 'rgba(200,200,200,0.6)'} 0%, transparent 100%)`,
+                left: '-60px',
+                top: '2px',
+              }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function HillsPhoto({ isDay, fullscreen = false }: { isDay: boolean; fullscreen?: boolean }) {
-  // PNG images with sky already removed (transparent). Only need a subtle
-  // bottom fade so hills blend into the content below.
-  const maskGradient = 'linear-gradient(to bottom, black 0%, black 75%, transparent 100%)';
+  // Detect browser for Hollywood sign positioning
+  const isChrome = typeof navigator !== 'undefined' && /Chrome/.test(navigator.userAgent) && !/Edg/.test(navigator.userAgent);
+  const isFirefox = typeof navigator !== 'undefined' && /Firefox/.test(navigator.userAgent);
+
+  // PNG images with sky already removed (transparent). No fade at bottom
+  // to fill the gap between hills and content.
+  const maskGradient = 'linear-gradient(to bottom, black 0%, black 100%)';
 
   return (
     <>
       <div
         className={`absolute left-0 right-0 pointer-events-none overflow-hidden ${
           fullscreen
-            ? 'top-[28%] h-[28%]'
-            : 'top-[12%] h-[22%] sm:top-[10%] sm:h-[28%]'
+            ? 'top-[28%] h-[32%]'
+            : 'top-[12%] h-[26%] sm:top-[10%] sm:h-[32%]'
         }`}
         style={{ zIndex: 2 }}
       >
@@ -1330,34 +1588,48 @@ function HillsPhoto({ isDay, fullscreen = false }: { isDay: boolean; fullscreen?
       </div>
 
       {/* Hollywood Sign - desktop only, positioned on the hillside */}
+      {/* Chrome: smaller and more right, Firefox: up and right slightly */}
       <div
-        className={`absolute pointer-events-none hidden sm:block ${
-          fullscreen ? 'top-[42%] right-[6%]' : 'top-[24%] right-[4%]'
-        }`}
-        style={{ zIndex: 3 }}
+        className="absolute pointer-events-none hidden sm:block"
+        style={{
+          zIndex: 3,
+          top: isChrome
+            ? (fullscreen ? '46%' : '28%')
+            : isFirefox
+              ? (fullscreen ? '45%' : '27%')
+              : (fullscreen ? '45%' : '27%'),
+          right: isChrome
+            ? (fullscreen ? '-5%' : '-5%')
+            : isFirefox
+              ? (fullscreen ? '-2%' : '-2%')
+              : '-1%',
+        }}
       >
         <div
-          className="flex transition-opacity duration-[3000ms]"
+          className="flex items-end transition-opacity duration-[3000ms]"
           style={{
-            opacity: isDay ? 0.85 : 0.35,
-            transform: fullscreen ? 'scale(0.5)' : 'scale(0.28)',
-            transformOrigin: 'top right',
+            opacity: isDay ? 1 : 0.6,
+            transform: isChrome
+              ? (fullscreen ? 'scale(0.22)' : 'scale(0.18)')
+              : (fullscreen ? 'scale(0.28)' : 'scale(0.22)'),
+            transformOrigin: 'center',
           }}
         >
           {['H', 'O', 'L', 'L', 'Y', 'W', 'O', 'O', 'D'].map((letter, i) => (
             <div
               key={i}
               style={{
-                fontSize: '32px',
-                fontFamily: 'Arial Narrow, Arial, sans-serif',
-                fontWeight: 400,
+                fontSize: '72px',
+                fontFamily: 'Arial Black, Arial, sans-serif',
+                fontWeight: 900,
                 fontStretch: 'condensed',
-                color: isDay ? '#f5f5f5' : '#a0a0a0',
-                letterSpacing: '1px',
+                color: '#FFFFFF',
+                letterSpacing: '-2px',
                 textShadow: isDay
-                  ? '0 1px 1px rgba(0,0,0,0.2)'
-                  : '0 0 3px rgba(255,255,255,0.2)',
-                marginRight: '2px',
+                  ? '2px 2px 1px rgba(0,0,0,0.2), -1px 0 0 rgba(200,200,200,0.5)'
+                  : '0 0 10px rgba(255,255,255,0.5), 2px 2px 2px rgba(0,0,0,0.4)',
+                marginRight: '3px',
+                transform: 'scaleX(0.7) scaleY(1.2)',
               }}
             >
               {letter}

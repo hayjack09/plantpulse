@@ -79,6 +79,103 @@ function storeReading(sensorId, moisture, timestamp) {
   saveHistory(history);
 }
 
+// Get today's min/max for a sensor (from local history only, used as fallback)
+function getLocalDailyMinMax(sensorId) {
+  const history = loadHistory();
+  const readings = history[sensorId] || [];
+
+  if (readings.length === 0) {
+    return { min: null, max: null };
+  }
+
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const todayReadings = readings.filter(r => new Date(r.timestamp) >= startOfDay);
+
+  if (todayReadings.length === 0) {
+    return { min: null, max: null };
+  }
+
+  const moistures = todayReadings.map(r => r.moisture);
+  return {
+    min: Math.min(...moistures),
+    max: Math.max(...moistures)
+  };
+}
+
+// Cloud-based daily min/max cache
+let dailyStatsCache = {};       // { sensorId: { min, max } }
+let dailyStatsCacheTime = 0;
+const DAILY_STATS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Fetch today's history for ALL soil channels in a single API call per account
+async function fetchAccountDailyHistory(account, startDate, endDate) {
+  const url = new URL('https://api.ecowitt.net/api/v3/device/history');
+  url.searchParams.set('application_key', account.appKey);
+  url.searchParams.set('api_key', account.apiKey);
+  url.searchParams.set('mac', account.mac);
+  url.searchParams.set('start_date', formatEcowittDate(startDate));
+  url.searchParams.set('end_date', formatEcowittDate(endDate));
+  // Request all soil channels at once
+  url.searchParams.set('call_back', 'soil_ch1,soil_ch2,soil_ch3,soil_ch4,soil_ch5,soil_ch6,soil_ch7,soil_ch8');
+
+  try {
+    const response = await fetch(url.toString());
+    const data = await response.json();
+    if (data.code !== 0) {
+      console.error(`Ecowitt History API error for ${account.id}:`, data.msg);
+      return null;
+    }
+    return data.data || {};
+  } catch (error) {
+    console.error(`Failed to fetch daily history from ${account.id}:`, error.message);
+    return null;
+  }
+}
+
+// Fetch today's min/max from Ecowitt cloud for all sensors (1 API call per account)
+async function refreshDailyStats() {
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const newStats = {};
+
+  for (const account of accounts) {
+    const data = await fetchAccountDailyHistory(account, startOfDay, now);
+    if (!data) continue;
+
+    for (let ch = 1; ch <= 8; ch++) {
+      const channelKey = `soil_ch${ch}`;
+      const channelData = data[channelKey];
+      if (!channelData?.soilmoisture?.list) continue;
+
+      const values = Object.values(channelData.soilmoisture.list).map(v => parseFloat(v));
+      if (values.length === 0) continue;
+
+      const sensorId = `${account.id}_soil_ch${ch}`;
+      newStats[sensorId] = {
+        min: Math.min(...values),
+        max: Math.max(...values),
+      };
+    }
+  }
+
+  if (Object.keys(newStats).length > 0) {
+    dailyStatsCache = newStats;
+    dailyStatsCacheTime = Date.now();
+    console.log(`Refreshed daily stats from Ecowitt cloud for ${Object.keys(newStats).length} sensors`);
+  }
+}
+
+// Get daily min/max: prefer cloud data, fall back to local
+function getDailyMinMax(sensorId) {
+  const cloudStats = dailyStatsCache[sensorId];
+  if (cloudStats) {
+    return cloudStats;
+  }
+  return getLocalDailyMinMax(sensorId);
+}
+
 // Get historical readings for a sensor
 function getHistory(sensorId, period) {
   const history = loadHistory();
@@ -164,6 +261,18 @@ const USE_MOCK_DATA = process.env.USE_MOCK_DATA === 'true';
 
 app.use(cors());
 app.use(express.json());
+
+// Prevent all caching for API routes and service worker
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  next();
+});
+app.use('/sw.js', (req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  next();
+});
 
 // Mock data generator for development
 function generateMockSensors() {
@@ -307,10 +416,18 @@ app.get('/api/sensors', async (req, res) => {
     const allSensors = results.flatMap(r => r.sensors);
     const errors = results.filter(r => r.error).map(r => ({ accountId: r.accountId, error: r.error }));
 
+    // Refresh daily stats from cloud if cache is stale (runs in background after first call)
+    if (Date.now() - dailyStatsCacheTime > DAILY_STATS_CACHE_TTL) {
+      refreshDailyStats().catch(err => console.error('Daily stats refresh error:', err));
+    }
+
     // Store each sensor reading for historical tracking
     const now = new Date().toISOString();
     for (const sensor of allSensors) {
       storeReading(sensor.id, sensor.moisture, sensor.timestamp || now);
+      const dailyStats = getDailyMinMax(sensor.id);
+      sensor.dailyMin = dailyStats.min;
+      sensor.dailyMax = dailyStats.max;
     }
     console.log(`Stored ${allSensors.length} sensor readings at ${now}`);
 
@@ -655,10 +772,18 @@ app.post('/api/settings/threshold', (req, res) => {
 // Serve static files from the built frontend (production)
 const distPath = path.join(__dirname, '..', 'dist');
 if (fs.existsSync(distPath)) {
-  app.use(express.static(distPath));
+  app.use(express.static(distPath, {
+    // Don't cache HTML or service worker
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.html') || filePath.endsWith('sw.js')) {
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+      }
+    },
+  }));
   // Serve index.html for all non-API routes (SPA support)
   app.get('*', (req, res) => {
     if (!req.path.startsWith('/api')) {
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.sendFile(path.join(distPath, 'index.html'));
     }
   });
@@ -668,6 +793,10 @@ if (fs.existsSync(distPath)) {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`PlantPulse server running on http://0.0.0.0:${PORT}`);
   console.log(`Configured Ecowitt accounts: ${accounts.length}`);
+  // Fetch daily stats from Ecowitt cloud on startup
+  if (accounts.length > 0 && !USE_MOCK_DATA) {
+    refreshDailyStats().catch(err => console.error('Initial daily stats fetch error:', err));
+  }
   if (USE_MOCK_DATA) {
     console.log('🔧 Mock data mode enabled (USE_MOCK_DATA=true)');
   }
